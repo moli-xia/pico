@@ -6,6 +6,18 @@
 
 Pico 是独立维护的桌面项目，不依赖 NetUpDown 服务端；仓库根目录就是 Pico 应用本身。
 
+## 🖼️ 界面预览
+
+以下截图来自独立 Windows EXE 的内置演示图库：
+
+<div align="center">
+  <img src="docs/screenshots/welcome.jpg" alt="Pico 欢迎页" width="49%" />
+  <img src="docs/screenshots/library.jpg" alt="Pico 图库界面" width="49%" />
+  <br />
+  <img src="docs/screenshots/viewer.jpg" alt="Pico 图片查看器" width="49%" />
+  <img src="docs/screenshots/editor.jpg" alt="Pico 图片编辑器" width="49%" />
+</div>
+
 Pico 的交付形态是**独立 Windows EXE**：HTML / CSS / JavaScript 会嵌入 EXE，由本机 WebView2 承载，不会打开网页版浏览器。它仿照当前最优秀的开源图片查看器打磨交互手感：
 缩放平移的顺滑度参照 [PhotoSwipe 5](https://photoswipe.com/)（MIT），旋转工具集参照 [Viewer.js](https://github.com/fengyuanchen/viewerjs)（MIT），
 键盘操作与幻灯片参照 [ImageGlass](https://github.com/d2phap/ImageGlass) / [qView](https://interversehq.com/qview/)，
