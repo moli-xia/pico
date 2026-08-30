@@ -450,6 +450,27 @@
   </div>
 </dialog>
 
+<dialog id="categoryDeleteDlg" class="dlg category-delete-dlg" aria-labelledby="categoryDeleteTitle">
+  <div class="dlg-head">
+    <div class="side-title" id="categoryDeleteTitle">删除分类</div>
+    <button class="v-btn" id="categoryDeleteClose" type="button" title="关闭" aria-label="关闭"><span data-icon="x"></span></button>
+  </div>
+  <div class="dlg-body category-delete-body">
+    <div class="category-delete-summary">
+      <div class="category-delete-icon" aria-hidden="true"><span data-icon="trash"></span></div>
+      <div class="category-delete-copy">
+        <div class="category-delete-question">确定删除分类“<strong id="categoryDeleteName"></strong>”吗？</div>
+        <div class="category-delete-detail" id="categoryDeleteDetail"></div>
+        <div class="category-delete-note"><span data-icon="shield-check"></span><span>原文件不会被删除，只会调整分类归属。</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="convert-foot category-delete-foot">
+    <button class="btn" id="categoryDeleteCancel" type="button">取消</button>
+    <button class="btn btn-danger" id="categoryDeleteConfirm" type="button"><span data-icon="trash"></span>删除分类</button>
+  </div>
+</dialog>
+
 <div id="toasts"></div>
 
 <input type="file" id="fileInput" multiple accept="image/*,.jfif,.avif,.webp,.bmp,.ico,.psd,.psb,.ai,.dwg" hidden>

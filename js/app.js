@@ -75,6 +75,7 @@
   let contextTarget = null;
   let categoryDialogMode = 'new';
   let categoryDialogTarget = null;
+  let categoryDeleteResolve = null;
   let screenCropCtl = null;
 
   const keyOf = function (it) { return it.dir + '\u0000' + it.name + '\u0000' + it.size + '\u0000' + it.mtime; };
@@ -858,6 +859,33 @@
     renderAll();
   }
 
+  function settleCategoryDelete(result) {
+    const resolve = categoryDeleteResolve;
+    categoryDeleteResolve = null;
+    const dlg = $('categoryDeleteDlg');
+    if (dlg && dlg.open) dlg.close();
+    if (resolve) resolve(!!result);
+  }
+
+  function askDeleteCategory(target, count) {
+    return new Promise(function (resolve) {
+      const dlg = $('categoryDeleteDlg');
+      if (categoryDeleteResolve) {
+        const previous = categoryDeleteResolve;
+        categoryDeleteResolve = null;
+        if (dlg.open) dlg.close();
+        previous(false);
+      }
+      $('categoryDeleteName').textContent = target.name;
+      $('categoryDeleteDetail').textContent = count
+        ? '其中 ' + count + ' 张图片会移回“未分类”。'
+        : '当前分类没有图片。';
+      categoryDeleteResolve = resolve;
+      if (!dlg.open) dlg.showModal();
+      window.setTimeout(function () { $('categoryDeleteCancel').focus(); }, 0);
+    });
+  }
+
   async function deleteActiveCategory() {
     const target = categories.find(function (c) { return c.id === categoryId; });
     if (!target || target.id === UNCATEGORIZED_ID) {
@@ -867,8 +895,7 @@
     const count = Array.from(items.values()).filter(function (it) {
       return validCategoryId(it.categoryId) === target.id;
     }).length;
-    const suffix = count ? '其中 ' + count + ' 张图片会移回“未分类”，原文件不会删除。' : '分类中的图片不会被删除。';
-    if (!window.confirm('确定删除分类“' + target.name + '”吗？\n\n' + suffix)) return;
+    if (!await askDeleteCategory(target, count)) return;
 
     categories = categories.filter(function (c) { return c.id !== target.id; });
     const writes = [];
@@ -1102,6 +1129,16 @@
     });
     $('btnDeleteCategory').addEventListener('click', deleteActiveCategory);
     $('categoryDlgSave').addEventListener('click', saveCategoryDialog);
+    $('categoryDeleteCancel').addEventListener('click', function () { settleCategoryDelete(false); });
+    $('categoryDeleteClose').addEventListener('click', function () { settleCategoryDelete(false); });
+    $('categoryDeleteConfirm').addEventListener('click', function () { settleCategoryDelete(true); });
+    $('categoryDeleteDlg').addEventListener('cancel', function (e) {
+      e.preventDefault();
+      settleCategoryDelete(false);
+    });
+    $('categoryDeleteDlg').addEventListener('close', function () {
+      if (categoryDeleteResolve) settleCategoryDelete(false);
+    });
     $('categoryNameInput').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); saveCategoryDialog(); }
     });
