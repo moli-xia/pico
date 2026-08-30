@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Pico 图片查看器</title>
+<link rel="icon" href="assets/pico-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════ 顶部栏（网格视图） ══════════════ -->
+  <header id="topbar">
+    <div class="brand">
+      <div class="brand-logo" id="brandLogo"></div>
+      <div class="brand-text">
+        <div class="brand-name">Pico <span>图片查看器</span></div>
+        <div class="brand-sub">本地图片工具</div>
+      </div>
+    </div>
+
+    <div class="topbar-tools">
+      <button class="btn icon-btn only-mobile" id="btnSidebar" title="分类面板">
+        <span data-icon="layers"></span>
+      </button>
+      <button class="btn btn-primary" id="btnOpenImages" title="打开图片（可多选）">
+        <span data-icon="image"></span><span class="btn-text">打开图片</span>
+      </button>
+      <button class="btn" id="btnOpenFolder" title="打开文件夹（含子文件夹）">
+        <span data-icon="folder"></span><span class="btn-text">打开文件夹</span>
+      </button>
+      <button class="btn" id="btnSaveAs" title="另存为（可批量选择格式）">
+        <span data-icon="save"></span><span class="btn-text">另存为</span>
+      </button>
+      <button class="btn" id="btnSelectMode" title="多选图片（Ctrl+A 全选）">
+        <span data-icon="check"></span><span class="btn-text">选择</span>
+      </button>
+
+      <div class="search-wrap" title="搜索文件名">
+        <span data-icon="search" class="search-ic"></span>
+        <input id="searchInput" type="search" placeholder="搜索文件名…" spellcheck="false">
+        <button class="search-clear" id="searchClear" title="清空" hidden><span data-icon="x"></span></button>
+      </div>
+
+      <span class="v-divider"></span>
+
+      <div class="dropdown" id="sortDD">
+        <button class="btn" id="btnSort" title="排序">
+          <span data-icon="sort"></span><span class="btn-text" id="sortLabel">按名称</span><span data-icon="chevron-down" class="caret"></span>
+        </button>
+        <div class="menu" role="menu">
+          <button class="menu-item" data-sort="name"><span data-icon="check" class="mi-check"></span>按名称</button>
+          <button class="menu-item" data-sort="date"><span data-icon="check" class="mi-check"></span>按修改时间</button>
+          <button class="menu-item" data-sort="size"><span data-icon="check" class="mi-check"></span>按文件大小</button>
+          <button class="menu-item" data-sort="type"><span data-icon="check" class="mi-check"></span>按类型</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" id="btnSortDir"><span data-icon="sort-asc" class="mi-check"></span><span id="sortDirLabel">升序</span></button>
+          <button class="menu-item" id="btnShuffle"><span data-icon="shuffle" class="mi-check"></span>随机排序</button>
+        </div>
+      </div>
+
+      <div class="seg" id="thumbSizeSeg" title="缩略图大小">
+        <button data-size="s" title="小">S</button>
+        <button data-size="m" title="中">M</button>
+        <button data-size="l" title="大">L</button>
+      </div>
+
+      <button class="btn icon-btn" id="btnTheme" title="切换主题">
+        <span data-icon="moon"></span>
+      </button>
+      <button class="btn icon-btn" id="btnHelp" title="快捷键（?）">
+        <span data-icon="keyboard"></span>
+      </button>
+      <button class="btn icon-btn" id="btnSettings" title="设置">
+        <span data-icon="sliders"></span>
+      </button>
+    </div>
+  </header>
+
+  <div id="selectionBar" hidden>
+    <div class="selection-summary"><span data-icon="check"></span><span>已选 <strong id="selectionCount">0</strong> 张图片</span></div>
+    <div class="selection-actions">
+      <button class="btn" id="btnSelectAll" type="button">全选当前</button>
+      <button class="btn" id="btnClearSelection" type="button">清空选择</button>
+      <button class="btn btn-danger" id="btnSelectionDelete" type="button"><span data-icon="trash"></span>删除所选</button>
+      <button class="btn btn-primary" id="btnSelectionConvert" type="button"><span data-icon="repeat"></span>转换所选</button>
+    </div>
+  </div>
+
+  <!-- ══════════════ 主体 ══════════════ -->
+  <div id="layout">
+    <aside id="sidebar">
+      <div class="side-title side-title-row">
+        <span>分类</span>
+        <span class="side-actions">
+          <button class="side-action" id="btnNewCategory" type="button" title="新建分类" aria-label="新建分类"><span data-icon="plus"></span></button>
+          <button class="side-action" id="btnRenameCategory" type="button" title="重命名当前分类" aria-label="重命名当前分类" disabled><span data-icon="edit"></span></button>
+          <button class="side-action side-action-danger" id="btnDeleteCategory" type="button" title="删除当前分类" aria-label="删除当前分类" disabled><span data-icon="trash"></span></button>
+        </span>
+      </div>
+      <nav id="folderList"></nav>
+      <div class="side-foot" id="sideStat"></div>
+    </aside>
+
+    <main id="main">
+      <!-- 欢迎页 / 空状态 -->
+      <section id="welcome">
+        <div class="welcome-card">
+          <div class="welcome-logo" id="welcomeLogo"></div>
+          <h1>Pico 图片查看器</h1>
+          <p class="welcome-desc">把图片或整个文件夹<b>拖到这里</b>，即刻开始浏览。<br>所有处理均在本地浏览器完成，不会上传任何文件。</p>
+          <div class="welcome-actions">
+            <button class="btn btn-primary btn-lg" id="btnWelcomeImages"><span data-icon="image"></span>打开图片</button>
+            <button class="btn btn-lg" id="btnWelcomeFolder"><span data-icon="folder"></span>打开文件夹</button>
+            <button class="btn btn-lg" id="btnWelcomeSaveAs"><span data-icon="save"></span>另存为</button>
+            <button class="btn btn-lg btn-ghost" id="btnDemo"><span data-icon="play"></span>观看演示</button>
+          </div>
+      <div class="welcome-hint">支持 JPG / PNG / GIF / WebP / AVIF / BMP / SVG / PSD / PSB / AI / DWG · 也可以直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴图片</div>
+        </div>
+      </section>
+
+      <!-- 图片网格 -->
+      <section id="grid" tabindex="-1"></section>
+    </main>
+  </div>
+
+  <!-- 拖拽遮罩 -->
+  <div id="dropOverlay"><div class="drop-box"><span data-icon="image" class="drop-ic"></span><div>松开以导入图片</div></div></div>
+</div>
+
+<!-- ══════════════ 屏幕截图裁剪层 ══════════════ -->
+<div id="screenCrop" hidden aria-label="屏幕截图裁剪">
+  <div id="screenCropStage">
+      <canvas id="screenCropCanvas"></canvas>
+      <div id="screenCropRect" hidden>
+        <span id="screenCropSize"></span>
+        <span class="screen-crop-handle screen-crop-handle-nw" data-handle="nw" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-n" data-handle="n" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-ne" data-handle="ne" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-e" data-handle="e" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-se" data-handle="se" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-s" data-handle="s" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-sw" data-handle="sw" aria-hidden="true"></span>
+        <span class="screen-crop-handle screen-crop-handle-w" data-handle="w" aria-hidden="true"></span>
+      </div>
+  </div>
+  <div id="screenCropToolbar">
+    <div class="screen-crop-status"><span data-icon="camera"></span><span id="screenCropStatus">正在准备屏幕画面…</span></div>
+    <div class="screen-crop-actions">
+      <button class="btn" id="screenCropCancel" type="button">取消 <kbd>Esc</kbd></button>
+      <button class="btn btn-primary" id="screenCropConfirm" type="button" disabled title="无选区时截取全屏">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 图片右键菜单 ══════════════ -->
+<div class="menu context-menu" id="contextMenu" role="menu" hidden>
+  <button class="menu-item" data-context-action="edit" type="button"><span data-icon="edit" class="mi-icon"></span>编辑图片</button>
+  <button class="menu-item" data-context-action="copy" type="button"><span data-icon="copy" class="mi-icon"></span>复制图片</button>
+  <button class="menu-item" data-context-action="paste" type="button"><span data-icon="clipboard" class="mi-icon"></span>粘贴图片</button>
+  <div class="menu-sep"></div>
+  <button class="menu-item" data-context-action="delete" type="button"><span data-icon="trash" class="mi-icon"></span>删除图片</button>
+  <button class="menu-item" data-context-action="info" type="button"><span data-icon="info" class="mi-icon"></span>查看图片信息</button>
+  <button class="menu-item" data-context-action="save" type="button"><span data-icon="save" class="mi-icon"></span>另存为</button>
+  <button class="menu-item" data-context-action="open-dir" type="button"><span data-icon="folder" class="mi-icon"></span>打开图片目录</button>
+</div>
+
+<!-- ══════════════ 查看器 ══════════════ -->
+<div id="viewer" hidden>
+  <div class="v-top" id="vTop">
+    <div class="v-title-wrap">
+      <div class="v-name" id="vName">—</div>
+      <div class="v-count" id="vCount">0 / 0</div>
+    </div>
+    <div class="v-actions">
+        <button class="v-btn" id="vBtnInfo" title="图片信息（I）"><span data-icon="info"></span></button>
+        <button class="v-btn" id="vBtnStrip" title="胶片栏"><span data-icon="film"></span></button>
+        <button class="v-btn" id="vBtnEdit" title="编辑图片"><span data-icon="edit"></span></button>
+        <button class="v-btn" id="vBtnSaveAs" title="另存为（Ctrl+S，含格式转换）"><span data-icon="save"></span></button>
+      <button class="v-btn" id="vBtnDelete" title="从列表移除（Del）"><span data-icon="trash"></span></button>
+      <span class="v-divider"></span>
+      <button class="v-btn" id="vBtnFull" title="全屏（F）"><span data-icon="maximize"></span></button>
+      <button class="v-btn" id="vBtnClose" title="返回网格（Esc）"><span data-icon="x"></span></button>
+    </div>
+  </div>
+
+  <div class="v-stage" id="vStage">
+    <div class="v-zoom-wrap" id="vZoomWrap"><img id="vImg" alt="" draggable="false"></div>
+    <div class="v-loading" id="vLoading"><div class="spinner"></div></div>
+  </div>
+
+  <button class="v-nav v-prev" id="vPrev" title="上一张（←）"><span data-icon="chevron-left"></span></button>
+  <button class="v-nav v-next" id="vNext" title="下一张（→）"><span data-icon="chevron-right"></span></button>
+
+  <button class="v-zoombadge" id="vZoomBadge" title="点击恢复 100%">100%</button>
+
+  <div class="v-bottom" id="vBottom">
+    <div class="v-filmstrip" id="vStrip" hidden></div>
+    <div class="v-toolbar" id="vToolbar">
+      <div class="v-progress" id="vProgress" hidden></div>
+      <button class="v-btn" id="vBtnZoomOut" title="缩小（-）"><span data-icon="zoom-out"></span></button>
+      <button class="v-btn" id="vBtnZoomIn" title="放大（+）"><span data-icon="zoom-in"></span></button>
+      <button class="v-btn v-btn-txt" id="vBtnFit" title="适应窗口（0）">适应</button>
+      <button class="v-btn v-btn-txt" id="vBtnActual" title="实际大小（1）">1:1</button>
+      <span class="v-divider"></span>
+      <button class="v-btn" id="vBtnRotCCW" title="向左旋转（L）"><span data-icon="rotate-ccw"></span></button>
+      <button class="v-btn" id="vBtnRotCW" title="向右旋转（R）"><span data-icon="rotate-cw"></span></button>
+      <span class="v-divider"></span>
+      <button class="v-btn" id="vBtnPlay" title="幻灯片（空格）"><span data-icon="play"></span></button>
+    </div>
+  </div>
+
+  <aside class="v-info" id="vInfo" hidden>
+    <div class="v-info-head">
+      <div class="side-title">图片信息</div>
+      <button class="v-btn" id="vInfoClose" title="关闭"><span data-icon="x"></span></button>
+    </div>
+    <div class="v-info-body" id="vInfoBody"></div>
+  </aside>
+</div>
+
+<!-- ══════════════ 图片编辑器 ══════════════ -->
+<div id="editor" hidden>
+  <div class="editor-shell">
+    <header class="editor-head">
+      <div class="editor-title-wrap">
+        <button class="v-btn" id="editorClose" title="关闭编辑器（Esc）"><span data-icon="x"></span></button>
+        <div>
+          <div class="editor-title">编辑图片</div>
+          <div class="editor-name" id="editorName">—</div>
+        </div>
+      </div>
+      <div class="editor-head-actions">
+        <button class="btn" id="editorUndo" title="撤销（Ctrl+Z）"><span data-icon="undo"></span><span class="editor-action-text">撤销</span></button>
+        <button class="btn" id="editorRedo" title="重做（Ctrl+Y）"><span data-icon="redo"></span><span class="editor-action-text">重做</span></button>
+        <button class="btn" id="editorReset" title="恢复原图"><span data-icon="refresh"></span><span class="editor-action-text">重置</span></button>
+      </div>
+    </header>
+
+    <div class="editor-layout">
+      <section class="editor-preview-panel">
+        <div class="editor-preview" id="editorPreview">
+          <canvas id="editorCanvas" aria-label="编辑预览"></canvas>
+          <input id="editorInlineText" class="editor-inline-text" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="输入文字…" hidden>
+          <div class="editor-crop-box" id="editorCropBox" hidden>
+            <span class="crop-corner crop-tl"></span><span class="crop-corner crop-tr"></span>
+            <span class="crop-corner crop-bl"></span><span class="crop-corner crop-br"></span>
+            <span class="crop-size" id="editorCropSize"></span>
+          </div>
+          <div class="editor-preview-hint" id="editorPreviewHint">正在读取图片…</div>
+        </div>
+        <div class="editor-status" id="editorStatus">—</div>
+      </section>
+
+      <aside class="editor-controls" aria-label="图片编辑工具">
+        <section class="editor-group">
+          <div class="editor-group-title">变换</div>
+          <div class="editor-tool-grid">
+            <button class="btn editor-tool" id="editorRotateCCW"><span data-icon="rotate-ccw"></span><span>左旋</span></button>
+            <button class="btn editor-tool" id="editorRotateCW"><span data-icon="rotate-cw"></span><span>右旋</span></button>
+          </div>
+        </section>
+
+        <section class="editor-group editor-mark-group">
+          <div class="editor-group-title editor-group-title-row"><span>标注与绘制</span><button class="btn editor-mini-btn" id="editorClearMarks">清除标注</button></div>
+          <div class="editor-tool-grid editor-mark-tools">
+            <button class="btn editor-tool editor-mark-tool on" id="editorToolSelect"><span data-icon="mouse-pointer"></span><span>选择</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolPen"><span data-icon="pen"></span><span>画笔</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolLine"><span data-icon="minus"></span><span>直线</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolRect"><span data-icon="square"></span><span>矩形</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolEllipse"><span data-icon="circle"></span><span>椭圆</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolArrow"><span data-icon="arrow-up-right"></span><span>箭头</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolMosaic"><span data-icon="grid"></span><span>马赛克</span></button>
+            <button class="btn editor-tool editor-mark-tool" id="editorToolText"><span data-icon="type"></span><span>文字</span></button>
+          </div>
+          <div class="editor-mark-options">
+            <div class="editor-palette-field"><span>颜色</span><div class="color-palette" id="editorDrawPalette" role="group" aria-label="绘制颜色"></div></div>
+            <label class="editor-range"><span>粗细 / 文字字号 / 马赛克块 <output id="editorDrawWidthVal">6</output> px</span><input id="editorDrawWidth" type="range" min="1" max="180" step="1" value="6"></label>
+            <label class="editor-range"><span>不透明度 <output id="editorDrawOpacityVal">100</output>%</span><input id="editorDrawOpacity" type="range" min="20" max="100" step="1" value="100"></label>
+            <label class="editor-check"><input id="editorDrawFill" type="checkbox"><span>填充矩形 / 椭圆</span></label>
+            <div class="editor-shape-rotation">
+              <label class="editor-range"><span>图形旋转 <output id="editorShapeRotationVal">0</output>°</span><input id="editorShapeRotation" type="range" min="-180" max="180" step="1" value="0" disabled></label>
+              <div class="editor-rotate-actions"><button class="btn editor-mini-btn" id="editorRotateMarkCCW" disabled>↶ 15°</button><button class="btn editor-mini-btn" id="editorRotateMarkCW" disabled>↷ 15°</button></div>
+            </div>
+          </div>
+          <div class="editor-text-box">
+            <div class="editor-text-hint"><span data-icon="type"></span><span>点击“文字”后，在图片任意位置输入；双击已有文字可编辑</span></div>
+            <div class="editor-text-options">
+              <label class="editor-check"><input id="editorTextBold" type="checkbox" checked><span>粗体</span></label>
+            </div>
+          </div>
+          <div class="editor-help">选择工具可拖动或删除标注；绘图工具直接在预览中拖动，文字点击预览放置；鼠标滚轮可缩放预览。</div>
+        </section>
+
+        <section class="editor-group">
+          <div class="editor-group-title editor-group-title-row"><span>裁剪</span><button class="btn editor-mini-btn" id="editorCropToggle">启用裁剪</button></div>
+          <div class="editor-ratios" id="editorRatios">
+            <button class="on" data-ratio="free">自由</button>
+            <button data-ratio="1">1:1</button>
+            <button data-ratio="1.333333">4:3</button>
+            <button data-ratio="1.777778">16:9</button>
+            <button data-ratio="original">原图</button>
+          </div>
+          <div class="editor-help">拖动预览中的裁剪框，导出时只保留框内区域。</div>
+        </section>
+
+        <section class="editor-group">
+          <div class="editor-group-title">调整</div>
+          <label class="editor-range"><span>亮度 <output id="editorBrightnessVal">0</output></span><input id="editorBrightness" type="range" min="-100" max="100" step="1" value="0"></label>
+          <label class="editor-range"><span>对比度 <output id="editorContrastVal">0</output></span><input id="editorContrast" type="range" min="-100" max="100" step="1" value="0"></label>
+          <label class="editor-range"><span>饱和度 <output id="editorSaturationVal">0</output></span><input id="editorSaturation" type="range" min="-100" max="100" step="1" value="0"></label>
+          <label class="editor-range"><span>模糊 <output id="editorBlurVal">0</output> px</span><input id="editorBlur" type="range" min="0" max="20" step="0.5" value="0"></label>
+          <label class="editor-range"><span>图片不透明度 <output id="editorOpacityVal">100</output>%</span><input id="editorOpacity" type="range" min="0" max="100" step="1" value="100"></label>
+        </section>
+
+        <section class="editor-group editor-export-group">
+          <div class="editor-group-title">导出格式</div>
+          <div class="editor-dimensions">
+            <div class="editor-dimension-title">输出尺寸（像素）</div>
+            <div class="editor-dimension-row">
+              <label><span>宽</span><input id="editorOutputWidth" type="number" min="1" max="12000" step="1" inputmode="numeric" aria-label="输出宽度"></label>
+              <span class="editor-dimension-times">×</span>
+              <label><span>高</span><input id="editorOutputHeight" type="number" min="1" max="12000" step="1" inputmode="numeric" aria-label="输出高度"></label>
+              <button class="btn editor-dimension-lock on" id="editorDimensionLock" type="button" aria-pressed="true" title="锁定宽高比">锁定</button>
+            </div>
+            <button class="btn editor-mini-btn editor-dimension-reset" id="editorDimensionReset" type="button">使用裁剪尺寸</button>
+          </div>
+          <div class="editor-export-row">
+            <select id="editorFormat" aria-label="导出格式">
+              <option value="png">PNG（透明背景）</option>
+              <option value="jpeg">JPEG（照片）</option>
+              <option value="webp">WebP（体积小）</option>
+            </select>
+          </div>
+          <label class="editor-range editor-quality"><span>质量 <output id="editorQualityVal">100</output>%</span><input id="editorQuality" type="range" min="50" max="100" step="1" value="100"></label>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="editor-foot">
+      <div class="editor-foot-note"><span data-icon="shield-check"></span>原文件不会被覆盖，编辑结果会另存为新图片</div>
+      <div class="editor-foot-actions">
+        <button class="btn" id="editorCancel">取消</button>
+        <button class="btn" id="editorAdd"><span data-icon="plus"></span>加入图库</button>
+        <button class="btn btn-primary" id="editorSave"><span data-icon="save"></span>保存副本</button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- ══════════════ 格式转换 ══════════════ -->
+<dialog id="convertDlg" class="dlg convert-dlg">
+  <div class="dlg-head"><div class="side-title">另存为</div><button class="v-btn" id="convertClose" title="关闭"><span data-icon="x"></span></button></div>
+  <div class="dlg-body">
+    <div class="convert-preview-card">
+      <div class="convert-preview-icon"><span data-icon="repeat"></span></div>
+      <div><div class="convert-summary" id="convertSummary">请选择要转换的图片</div><div class="convert-subsummary" id="convertSubsummary">转换会生成新文件，原图不会被覆盖。</div></div>
+    </div>
+    <div class="convert-label">转换范围</div>
+    <div class="seg convert-scopes" id="convertScopes">
+      <button data-scope="current">当前图片</button>
+      <button data-scope="visible">当前筛选</button>
+      <button data-scope="selected">已选图片</button>
+      <button data-scope="all">全部图库</button>
+    </div>
+    <label class="convert-field"><span>目标格式</span><select id="convertFormat">
+      <option value="png">PNG（透明背景）</option>
+      <option value="jpeg">JPEG（照片）</option>
+      <option value="webp">WebP（体积小）</option>
+    </select></label>
+    <label class="editor-range convert-quality"><span>质量 <output id="convertQualityVal">100</output>%</span><input id="convertQuality" type="range" min="50" max="100" step="1" value="100"></label>
+    <div class="convert-note"><span data-icon="info"></span><span>GIF 等动图转换为静态图片时只保留当前首帧。</span></div>
+  </div>
+  <div class="convert-foot">
+    <button class="btn" id="convertCancel">取消</button>
+    <div class="convert-foot-actions"><button class="btn" id="convertAdd"><span data-icon="plus"></span>转换并加入图库</button><button class="btn btn-primary" id="convertSave"><span data-icon="save"></span>另存当前图片</button></div>
+  </div>
+</dialog>
+
+<!-- ══════════════ 对话框 ══════════════ -->
+<dialog id="settingsDlg" class="dlg">
+  <div class="dlg-head"><div class="side-title">设置</div><button class="v-btn dlg-close"><span data-icon="x"></span></button></div>
+  <div class="dlg-body">
+    <div class="set-row">
+      <div class="set-label">主题<em>跟随系统或手动指定</em></div>
+      <div class="seg" id="themeSeg">
+        <button data-theme="auto"><span data-icon="monitor"></span>跟随系统</button>
+        <button data-theme="dark"><span data-icon="moon"></span>暗色</button>
+        <button data-theme="light"><span data-icon="sun"></span>亮色</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">鼠标滚轮<em>查看器内滚轮的行为</em></div>
+      <div class="seg" id="wheelSeg">
+        <button data-wheel="zoom">缩放图片</button>
+        <button data-wheel="nav">切换图片</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">幻灯片间隔<em><b id="intervalVal">3</b> 秒</em></div>
+      <input type="range" id="intervalRange" min="1" max="20" step="1" value="3">
+    </div>
+    <label class="set-row set-check">
+      <input type="checkbox" id="loopChk" checked>
+      <div class="set-label">循环播放<em>幻灯片到最后一张后从头开始</em></div>
+    </label>
+    <label class="set-row set-check">
+      <input type="checkbox" id="stripChk" checked>
+      <div class="set-label">显示胶片栏<em>打开查看器时显示底部缩略图条</em></div>
+    </label>
+    <div class="set-row">
+      <div class="set-label">关于</div>
+      <button class="btn" id="btnAbout">关于 Pico 图片查看器</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="helpDlg" class="dlg">
+  <div class="dlg-head"><div class="side-title">键盘快捷键</div><button class="v-btn dlg-close"><span data-icon="x"></span></button></div>
+  <div class="dlg-body"><div id="helpBody"></div></div>
+</dialog>
+
+<dialog id="aboutDlg" class="dlg">
+  <div class="dlg-head"><div class="side-title">关于 Pico</div><button class="v-btn dlg-close"><span data-icon="x"></span></button></div>
+  <div class="dlg-body about-body">
+    <div class="welcome-logo small" id="aboutLogo"></div>
+      <h2>Pico 图片查看器 <small>v1.7.2</small></h2>
+    <p>一款纯前端、零依赖的本地图片查看器：网格浏览、丝滑缩放、幻灯片与 EXIF 信息，所有文件均不上传。</p>
+    <p class="about-repo"><a id="aboutRepoLink" href="https://github.com/moli-xia/pico" target="_blank" rel="noopener noreferrer">GitHub 项目主页：github.com/moli-xia/pico</a></p>
+    <p class="about-credit">设计灵感与致谢：
+      <a href="https://photoswipe.com" target="_blank" rel="noopener">PhotoSwipe</a> ·
+      <a href="https://github.com/fengyuanchen/viewerjs" target="_blank" rel="noopener">Viewer.js</a> ·
+      <a href="https://github.com/d2phap/ImageGlass" target="_blank" rel="noopener">ImageGlass</a> ·
+      <a href="https://nomacs.org" target="_blank" rel="noopener">nomacs</a> ·
+      <a href="https://interversehq.com/qview/" target="_blank" rel="noopener">qView</a>
+    </p>
+  </div>
+</dialog>
+
+<dialog id="categoryDlg" class="dlg category-dlg">
+  <div class="dlg-head"><div class="side-title" id="categoryDlgTitle">新建分类</div><button class="v-btn dlg-close" id="categoryDlgClose" type="button" title="关闭"><span data-icon="x"></span></button></div>
+  <div class="dlg-body">
+    <label class="convert-field"><span>分类名称</span><input id="categoryNameInput" type="text" maxlength="40" autocomplete="off" placeholder="例如：工作截图"></label>
+  </div>
+  <div class="convert-foot">
+    <button class="btn dlg-close" id="categoryDlgCancel" type="button">取消</button>
+    <button class="btn btn-primary" id="categoryDlgSave" type="button">保存</button>
+  </div>
+</dialog>
+
+<div id="toasts"></div>
+
+<input type="file" id="fileInput" multiple accept="image/*,.jfif,.avif,.webp,.bmp,.ico,.psd,.psb,.ai,.dwg" hidden>
+<input type="file" id="dirInput" webkitdirectory multiple hidden>
+
+<script src="js/util.js"></script>
+<script src="js/exif.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/screenshot.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/converter.js"></script>
+<script src="js/formats.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

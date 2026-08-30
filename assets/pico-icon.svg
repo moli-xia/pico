@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="picoIconGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6A8DFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#picoIconGradient)"/>
+  <rect x="48" y="48" width="160" height="160" rx="16" fill="#F4F7FF"/>
+  <circle cx="91" cy="91" r="13" fill="#6A8DFF"/>
+  <path d="M64 184 105 132 137 167 160 140 192 184Z" fill="#4660B7"/>
+  <path d="M64 184h128" fill="none" stroke="#263873" stroke-width="8" stroke-linecap="round"/>
+</svg>
