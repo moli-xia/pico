@@ -1552,6 +1552,7 @@
       ['E', '打开图片编辑器'], ['O / Ctrl+S', '另存为（含格式转换）'], ['Ctrl+Shift+C', '截取屏幕或窗口'], ['F', '全屏'],
       ['Delete', '从列表移除'], ['Esc', '返回网格'],
       ['Ctrl+V', '粘贴图片'], ['拖拽', '导入文件或文件夹'], ['?', '本帮助'],
+      ['PDF / OFD', '打开文档按页查看，文档内 ← / → 翻页'],
     ];
     $('helpBody').innerHTML = rows.map(function (r) {
       const keys = r[0].split(' / ').map(function (k) { return '<kbd>' + Pico.escapeHTML(k) + '</kbd>'; }).join('<i style="opacity:.4;font-style:normal">/</i>');
