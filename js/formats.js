@@ -12,13 +12,16 @@
   const ADVANCED_EXTENSIONS = Object.freeze(['psd', 'psb', 'ai', 'dwg']);
   const MAX_PSD_PIXELS = 64 * 1024 * 1024;
   const MAX_PDF_PIXELS = 24 * 1024 * 1024;
+  // WebView2 的用户数据目录会在应用多次升级之间保留。给模块 URL 带上资源版本，
+  // 旧版本遗留的过期或失败响应就不会被动态 import 命中。
+  const ASSET_VERSION = '2';
 
   let psdModulePromise = null;
   let pdfModulePromise = null;
   let dwgEnginePromise = null;
 
-  function moduleURL(path) {
-    return new URL(path, SCRIPT_ROOT).href;
+  function moduleURL(path, bust) {
+    return new URL(path, SCRIPT_ROOT).href + '?v=' + ASSET_VERSION + (bust ? '-' + bust : '');
   }
 
   function extOf(file) {
@@ -283,14 +286,28 @@
     throw new Error('PSD/PSB 没有可用的合成预览' + (detail ? '：' + detail : ''));
   }
 
+  function importPdfModule(bust) {
+    return import(moduleURL('vendor/pdf.min.mjs', bust)).then(function (module) {
+      const pdf = module || window.pdfjsLib;
+      if (!pdf || !pdf.getDocument) throw new Error('PDF 预览引擎不可用');
+      if (pdf.GlobalWorkerOptions) pdf.GlobalWorkerOptions.workerSrc = moduleURL('vendor/pdf.worker.min.mjs', bust);
+      return pdf;
+    });
+  }
+
   async function loadPDF() {
     if (!pdfModulePromise) {
-      pdfModulePromise = import(moduleURL('vendor/pdf.min.mjs')).then(function (module) {
-        const pdf = module || window.pdfjsLib;
-        if (!pdf || !pdf.getDocument) throw new Error('PDF 预览引擎不可用');
-        if (pdf.GlobalWorkerOptions) pdf.GlobalWorkerOptions.workerSrc = moduleURL('vendor/pdf.worker.min.mjs');
-        return pdf;
-      });
+      pdfModulePromise = importPdfModule('')
+        // 一次加载失败（例如命中了过期缓存）不应该让之后所有 PDF 都打不开：
+        // 换一个查询串再试一次，绕过缓存。
+        .catch(function (firstError) {
+          return importPdfModule('retry').catch(function () { throw firstError; });
+        })
+        // 仍然失败时清空缓存的 Promise，下一次打开 PDF 可以重新尝试。
+        .catch(function (error) {
+          pdfModulePromise = null;
+          throw error;
+        });
     }
     return pdfModulePromise;
   }
@@ -479,9 +496,14 @@
         item.previewPage = result.page;
         item.pageCount = result.pageCount;
         item.w = result.width; item.h = result.height;
+        item.previewError = null;
         return item.previewURL;
       }).catch(function (error) {
+        // 不缓存失败结果：重新打开该文档（或再次翻页）会重新渲染，
+        // 而不是永远返回同一个失败。
         item.previewError = error;
+        item.previewPromise = null;
+        item.previewPage = 0;
         throw error;
       });
       return item.previewPromise;
@@ -497,9 +519,11 @@
       item.previewMime = result.mime;
       item.previewDescription = result.description;
       if (result.width && result.height) { item.w = result.width; item.h = result.height; }
+      item.previewError = null;
       return item.previewURL;
     }).catch(function (error) {
       item.previewError = error;
+      item.previewPromise = null;
       throw error;
     });
     return item.previewPromise;
