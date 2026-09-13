@@ -11,7 +11,7 @@ import (
 //go:embed index.html css js assets
 var picoAssets embed.FS
 
-var version = "1.7.2"
+var version = "1.8.0"
 
 func startAssetServer() (string, func(), error) {
 	return startAssetServerAt("127.0.0.1:0")
