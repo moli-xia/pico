@@ -18,6 +18,7 @@ import (
 var picoImageExtensions = []string{
 	".jpg", ".jpeg", ".jfif", ".png", ".gif", ".webp", ".avif", ".bmp", ".ico", ".svg",
 	".psd", ".psb", ".ai", ".dwg",
+	".pdf", ".ofd",
 }
 
 var picoShellNotify = windows.NewLazySystemDLL("shell32.dll").NewProc("SHChangeNotify")

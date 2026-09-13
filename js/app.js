@@ -142,6 +142,7 @@
       // File.path 兜底，避免旧记录在中间流程里丢掉真实文件位置。
       path: it.path || absolutePathOf(it.file) || '', categoryId: validCategoryId(it.categoryId), size: it.size || 0,
       mtime: it.mtime || 0, w: it.w || 0, h: it.h || 0, rot: it.rot || 0,
+      doc: it.doc || '', page: it.page || 1, pageCount: it.pageCount || 0,
       rand: it.rand || Math.random(), order: it.order || (++libraryOrder),
     };
   }
@@ -184,6 +185,7 @@
     onCapture: function () { captureScreen(); },
   });
   screenCropCtl = Pico.initScreenCrop();
+  Pico.initScreenPicker();
 
   /* ══════════════ 编辑器 ══════════════ */
   editorCtl = Pico.initEditor({
@@ -316,12 +318,13 @@
     const pathUpdates = [];
     for (const en of entries) {
       const f = en.file;
-      if (!Pico.isImageFile(f)) continue;
+      const docExt = Pico.isDocFile(f) ? Pico.extOf(f.name) : '';
+      if (!Pico.isImageFile(f) && !docExt) continue;
       const dir = en.dir || '';
       const key = dir + '\u0000' + f.name + '\u0000' + f.size + '\u0000' + f.lastModified;
       const incomingPath = absolutePathOf(f) || absolutePathOf({ path: en.path });
       if (dedupe.has(key)) {
-        // 同一图片如果曾经通过浏览器拖拽/旧版本导入，记录可能没有原始路径。
+        // 同一文件如果曾经通过浏览器拖拽/旧版本导入，记录可能没有原始路径。
         // 之后用独立版原生选择器重新导入时，补齐已有记录而不是简单跳过。
         const existing = Array.from(items.values()).find(function (current) {
           return (current.storageKey || keyOf(current)) === key;
@@ -339,6 +342,7 @@
         size: f.size, mtime: f.lastModified,
         url: URL.createObjectURL(f), thumbURL: '',
         w: 0, h: 0, rot: 0, exif: undefined, rand: Math.random(), order: ++libraryOrder,
+        doc: docExt, page: 1, pageCount: 0,
         storageKey: key, path: incomingPath, categoryId: validCategoryId(en.categoryId || defaultCategoryId()),
       };
       items.set(it.id, it);
@@ -353,13 +357,14 @@
       await Promise.all(addedItems.concat(pathUpdates).map(persistItem));
       if (!quiet) {
         const ms = Math.round(performance.now() - t0);
-        Pico.toast('已导入 ' + added + ' 张图片' + (dup ? '（跳过重复 ' + dup + ' 张）' : '') + ' · ' + ms + ' ms', { type: 'ok' });
+        const docs = addedItems.filter(function (it) { return it.doc; }).length;
+        Pico.toast('已导入 ' + added + ' 个文件' + (docs ? '（含文档 ' + docs + ' 个）' : '') + (dup ? '（跳过重复 ' + dup + ' 个）' : '') + ' · ' + ms + ' ms', { type: 'ok' });
       }
     } else if (pathUpdates.length) {
       await Promise.all(pathUpdates.map(persistItem));
-      if (!quiet) Pico.toast('已补全 ' + pathUpdates.length + ' 张图片的本地路径', { type: 'ok' });
+      if (!quiet) Pico.toast('已补全 ' + pathUpdates.length + ' 个文件的本地路径', { type: 'ok' });
     } else if (!quiet) {
-      Pico.toast(dup ? '没有新增图片（全部重复）' : '未找到可识别的图片文件', { type: 'warn' });
+      Pico.toast(dup ? '没有新增文件（全部重复）' : '未找到可识别的图片或文档', { type: 'warn' });
     }
     return added;
   }
@@ -384,6 +389,8 @@
           size: record.size || file.size || 0, mtime: record.mtime || file.lastModified || 0,
           url: URL.createObjectURL(file), thumbURL: '',
           w: record.w || 0, h: record.h || 0, rot: record.rot || 0, exif: undefined,
+          doc: record.doc || (Pico.isDocFile({ name: name }) ? Pico.extOf(name) : ''),
+          page: Number(record.page) || 1, pageCount: Number(record.pageCount) || 0,
           rand: record.rand || Math.random(), order: order, storageKey: key, path: record.path || '',
           categoryId: validCategoryId(record.categoryId),
         };
@@ -500,7 +507,7 @@
         if (!budget()) return;
         try {
           const f = await entry.getFile();
-          if (Pico.isImageFile(f)) out.push({ file: f, dir: path });
+          if (Pico.isImageFile(f) || Pico.isDocFile(f)) out.push({ file: f, dir: path });
         } catch (e) {}
       } else if (entry.kind === 'directory') {
         await walkDirHandle(entry, path + entry.name + '/', out, budget);
@@ -580,6 +587,36 @@
   // 由 Windows RegisterHotKey 调用；保留一个轻量全局入口，避免把 DOM 事件
   // 当成唯一来源。captureBusy 会合并原生热键与窗口聚焦时的 keydown 重复触发。
   window.picoGlobalScreenshot = function () { return captureScreen(); };
+
+  /* ══════════════ 屏幕取色（独立工具） ══════════════ */
+  let pickColorBusy = false;
+  async function pickScreenColorStandalone() {
+    if (pickColorBusy) return;
+    pickColorBusy = true;
+    try {
+      const picked = await Pico.pickScreenColor(null);
+      if (!picked) return;
+      const hex = picked.hex.toUpperCase();
+      let copied = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(hex);
+          copied = true;
+        }
+      } catch (e) {}
+      Pico.toast(copied ? '已取色 ' + hex + '，HEX 已复制到剪贴板' : '已取色 ' + hex + '（复制失败，请手动记录）', {
+        type: copied ? 'ok' : 'warn', duration: 2600,
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      const msg = e && e.code === 'UNSUPPORTED'
+        ? '当前环境不支持屏幕取色，请使用独立版应用或最新 Chrome / Edge'
+        : '取色失败，请重试';
+      Pico.toast(msg, { type: 'warn' });
+    } finally {
+      pickColorBusy = false;
+    }
+  }
 
   /* ══════════════ 删除与撤销 ══════════════ */
   let lastRemoved = null;
@@ -1089,12 +1126,12 @@
     /* 打开文件 / 文件夹 */
     const pickImages = async function () {
       if (typeof window.picoPickImages === 'function') {
-        const t = Pico.toast('请选择图片（可多选）…', { duration: 0 });
+        const t = Pico.toast('请选择图片 / PDF / OFD（可多选）…', { duration: 0 });
         try {
           const entries = await pickNativeFiles('picoPickImages');
           if (entries && entries.length) await addFiles(entries);
         } catch (e) {
-          Pico.toast('打开图片失败，请重试', { type: 'warn' });
+          Pico.toast('打开文件失败，请重试', { type: 'warn' });
         } finally {
           t();
         }
@@ -1112,6 +1149,7 @@
     };
     $('btnSaveAs').addEventListener('click', openSaveAs);
     $('btnWelcomeSaveAs').addEventListener('click', function () { if (converterCtl) converterCtl.open(); });
+    $('btnPickColor').addEventListener('click', pickScreenColorStandalone);
     $('btnSelectMode').addEventListener('click', function () { setSelectionMode(!selectionMode); });
     $('btnSelectAll').addEventListener('click', toggleVisibleSelection);
     $('btnClearSelection').addEventListener('click', function () {

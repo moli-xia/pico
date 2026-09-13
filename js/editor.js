@@ -54,6 +54,7 @@
     let markOpacityBefore = null;
 
     const drawPalette = $('editorDrawPalette');
+    const pickColorBtn = $('editorPickColor');
     const drawWidth = $('editorDrawWidth');
     const drawWidthVal = $('editorDrawWidthVal');
     const drawOpacity = $('editorDrawOpacity');
@@ -144,7 +145,7 @@
       selectPalette(root, initial);
     }
 
-    setupPalette(drawPalette, drawColorValue, function (value) {
+    function applyDrawColor(value) {
       drawColorValue = value;
       if (editingTextIndex >= 0 && state && state.annotations[editingTextIndex]) {
         state.annotations[editingTextIndex].color = value;
@@ -152,6 +153,48 @@
         updateSelectedAnnotation(function (annotation) {
           annotation.color = value;
         });
+      }
+    }
+
+    /** 取色器结果：不在预设调色板时，追加一个“取色器颜色”虚线色块并选中。 */
+    function applyPickedColor(value) {
+      applyDrawColor(value);
+      const wanted = String(value || '').toLowerCase();
+      const exists = PALETTE.some(function (color) { return color.value.toLowerCase() === wanted; });
+      if (!exists) {
+        let custom = drawPalette.querySelector('.color-swatch.custom');
+        if (!custom) {
+          custom = document.createElement('button');
+          custom.type = 'button';
+          custom.className = 'color-swatch custom';
+          custom.setAttribute('aria-label', '取色器颜色');
+          custom.setAttribute('aria-pressed', 'false');
+          custom.addEventListener('click', function () { applyPickedColor(custom.dataset.color); });
+          drawPalette.appendChild(custom);
+        }
+        custom.dataset.color = value;
+        custom.style.setProperty('--swatch', value);
+        custom.title = '取色器颜色 ' + String(value).toUpperCase();
+      }
+      selectPalette(drawPalette, value);
+      updateInlineTextStyle();
+    }
+
+    setupPalette(drawPalette, drawColorValue, function (value) { applyDrawColor(value); });
+
+    pickColorBtn.addEventListener('click', async function () {
+      if (!openState) return;
+      try {
+        const picked = await Pico.pickScreenColor(drawColorValue);
+        if (!picked) return;
+        applyPickedColor(picked.hex);
+        Pico.toast('已取色 ' + picked.hex.toUpperCase() + '，已应用到绘制颜色', { type: 'ok', duration: 2400 });
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        const msg = e && e.code === 'UNSUPPORTED'
+          ? '当前环境不支持屏幕取色，请使用独立版应用或最新 Chrome / Edge'
+          : '取色失败，请重试';
+        Pico.toast(msg, { type: 'warn' });
       }
     });
 

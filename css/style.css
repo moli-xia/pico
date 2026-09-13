@@ -363,6 +363,44 @@ kbd {
 .screen-crop-actions .btn { height: 32px; padding: 0 12px; }
 .screen-crop-actions kbd { margin-left: 4px; color: #aab4c7; }
 
+/* ══════════════ 屏幕取色层 ══════════════ */
+#screenPick {
+  position: fixed; inset: 0; z-index: 950; overflow: hidden;
+  background: #05070b; color: #fff; user-select: none;
+  animation: fade 0.16s ease;
+}
+#screenPick[hidden] { display: none; }
+#screenPickStage { position: absolute; inset: 0; overflow: hidden; cursor: crosshair; touch-action: none; }
+#screenPickCanvas {
+  position: absolute; display: block; max-width: none; max-height: none;
+  user-select: none; pointer-events: none; image-rendering: auto;
+}
+#screenPickLens {
+  position: absolute; z-index: 2; width: 120px; pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, .34); border-radius: 10px;
+  background: #0b0e16; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); overflow: hidden;
+}
+#screenPickLens[hidden] { display: none; }
+#screenPickLensCanvas { display: block; width: 120px; height: 120px; }
+.screen-pick-readout { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-top: 1px solid rgba(255, 255, 255, .14); }
+.screen-pick-chip { flex: none; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .4); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .28); }
+.screen-pick-values { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.screen-pick-values span { font: 600 11px ui-monospace, Consolas, monospace; color: #e8edf7; white-space: nowrap; }
+.screen-pick-values span:nth-child(2) { font-weight: 400; font-size: 10px; color: #aab4c7; }
+.screen-pick-values span:last-child { font-weight: 400; font-size: 9.5px; color: #79829a; }
+#screenPickToolbar {
+  position: absolute; z-index: 2; top: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 28px);
+  padding: 7px 8px 7px 13px; border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 12px; background: rgba(13, 16, 23, .82);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .32); backdrop-filter: blur(18px);
+}
+.screen-pick-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.screen-pick-actions .btn { height: 32px; padding: 0 12px; }
+.screen-pick-actions kbd { margin-left: 4px; color: #aab4c7; }
+.screen-pick-prev { display: flex; align-items: center; gap: 7px; padding-right: 10px; margin-right: 4px; border-right: 1px solid rgba(255, 255, 255, .16); color: #aab4c7; font: 600 11px ui-monospace, Consolas, monospace; }
+.screen-pick-prev .screen-pick-chip { width: 18px; height: 18px; border-radius: 5px; }
+
 /* ══════════════ 查看器 ══════════════ */
 #viewer { position: fixed; inset: 0; z-index: 100; background: #07090d; animation: fade 0.22s ease; }
 #viewer[hidden] { display: none; }
@@ -484,6 +522,15 @@ body.pico-fullscreen { overflow: hidden; }
   padding: 6px; box-shadow: var(--shadow-2); overflow: hidden;
 }
 .v-toolbar .v-divider { background: rgba(255, 255, 255, 0.14); margin: 0 4px; }
+/* 文档（PDF/OFD）页码导航 */
+.v-docpages { display: flex; align-items: center; gap: 2px; flex: none; }
+.v-docpages[hidden] { display: none; }
+.v-pagelabel {
+  min-width: 58px; text-align: center; padding: 0 4px;
+  font: 600 12.5px/1 ui-monospace, Consolas, monospace; color: #dfe4ee;
+  font-variant-numeric: tabular-nums; user-select: none; cursor: default;
+}
+.v-pagelabel[title] { cursor: default; }
 .v-progress {
   position: absolute; left: 0; top: 0; height: 2.5px; width: 0%;
   background: var(--accent-grad); border-radius: 3px; pointer-events: none;
@@ -610,6 +657,8 @@ html[data-theme='dark'] .editor-preview { background-color: #242a35; background-
 .editor-mark-options .editor-range { grid-column: 1 / -1; }
 .editor-mark-options .editor-palette-field { grid-column: 1 / -1; }
 .editor-palette-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12px; }
+.editor-palette-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 27px; }
+.editor-palette-head .editor-mini-btn { display: inline-flex; align-items: center; gap: 4px; }
 .color-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
 .color-swatch {
   width: 100%; min-height: 20px; aspect-ratio: 1.35; padding: 0; border: 1px solid rgba(255, 255, 255, .24);
@@ -619,6 +668,7 @@ html[data-theme='dark'] .editor-preview { background-color: #242a35; background-
 .color-swatch:hover { transform: translateY(-1px); }
 .color-swatch:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .color-swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent), inset 0 0 0 1px rgba(0, 0, 0, .2); }
+.color-swatch.custom { border-style: dashed; }
 .editor-color { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; color: var(--text-2); font-size: 12px; }
 .editor-color input[type='color'] { width: 42px; height: 25px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg-3); cursor: pointer; }
 .editor-check { display: flex; align-items: center; gap: 7px; min-height: 30px; color: var(--text-2); font-size: 11.5px; cursor: pointer; }
@@ -852,6 +902,7 @@ body {
 #dropOverlay { background: rgba(20, 22, 24, .82); backdrop-filter: none; }
 .drop-box { border-radius: 8px; padding: 44px 68px; background: rgba(106, 141, 255, .12); animation: none; }
 #screenCropToolbar { border-radius: 7px; background: #161a23; box-shadow: var(--shadow-2); backdrop-filter: none; }
+#screenPickToolbar { border-radius: 7px; background: #161a23; box-shadow: var(--shadow-2); backdrop-filter: none; }
 #screenCropRect .screen-crop-handle { border-radius: 2px; background: var(--accent); }
 #viewer { background: #0b0d12; }
 .v-top { background: rgba(11, 13, 18, .94); border-bottom: 1px solid rgba(255, 255, 255, .12); }

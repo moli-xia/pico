@@ -386,13 +386,106 @@
     throw new Error('不支持的设计文件格式');
   }
 
+  /* ---------- PDF / OFD 文档按页渲染 ---------- */
+
+  const MAX_DOC_PIXELS = 12 * 1024 * 1024;
+  const documentEngines = new WeakMap(); // item → Promise<{kind, doc, pageCount}>
+
+  async function loadPdfDocument(item) {
+    const pdf = await loadPDF();
+    const bytes = new Uint8Array(await item.file.arrayBuffer());
+    const pdfBytes = extractPDF(bytes) || bytes;
+    const state = await pdf.getDocument({ data: pdfBytes, isEvalSupported: false }).promise;
+    if (!state.numPages) throw new Error('PDF 没有可显示的页面');
+    return { kind: 'pdf', doc: state, pageCount: state.numPages };
+  }
+
+  async function loadOfdDocument(item) {
+    if (!Pico.OFD || !Pico.OFD.open) throw new Error('OFD 预览引擎不可用');
+    const doc = await Pico.OFD.open(item.file);
+    return { kind: 'ofd', doc: doc, pageCount: doc.pageCount };
+  }
+
+  function documentEngine(item) {
+    let promise = documentEngines.get(item);
+    if (!promise) {
+      const ext = extOf(item);
+      promise = ext === 'pdf' ? loadPdfDocument(item) : ext === 'ofd' ? loadOfdDocument(item) : Promise.reject(new Error('不支持的文档格式'));
+      documentEngines.set(item, promise);
+      promise.catch(function () { documentEngines.delete(item); });
+    }
+    return promise;
+  }
+
+  async function renderDocumentPage(item) {
+    const state = await documentEngine(item);
+    const page = Math.min(state.pageCount, Math.max(1, Number(item.page) || 1));
+    item.page = page;
+    item.pageCount = state.pageCount;
+    let canvas = null;
+    if (state.kind === 'pdf') {
+      const pdfPage = await state.doc.getPage(page);
+      const base = pdfPage.getViewport({ scale: 1 });
+      const scale = Math.min(3, Math.max(0.5, Math.sqrt(MAX_DOC_PIXELS / Math.max(1, base.width * base.height))));
+      const viewport = pdfPage.getViewport({ scale: scale });
+      canvas = window.document.createElement('canvas');
+      canvas.width = Math.max(1, Math.ceil(viewport.width));
+      canvas.height = Math.max(1, Math.ceil(viewport.height));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await pdfPage.render({ canvasContext: ctx, viewport: viewport, background: '#ffffff' }).promise;
+    } else {
+      canvas = await state.doc.renderPage(page - 1);
+    }
+    const blob = await canvasBlob(canvas, 'image/png');
+    return {
+      blob: blob, width: canvas.width, height: canvas.height, mime: 'image/png',
+      page: page, pageCount: state.pageCount,
+      description: (state.kind === 'pdf' ? 'PDF' : 'OFD') + ' · 第 ' + page + ' / ' + state.pageCount + ' 页',
+    };
+  }
+
+  /** 文档（PDF/OFD）预览：按 item.page 渲染当前页并缓存。 */
+  Pico.renderDocumentPage = renderDocumentPage;
+  Pico.isDocumentItem = function (item) {
+    return !!item && !!item.file && Pico.isDocFile(item);
+  };
+
   /*
    * 返回最终给 <img> 使用的 URL。相同 item 的并发查看、缩略图和编辑
    * 请求共享一个 Promise，避免重复启动 WebAssembly/PDF 解码。
+   * 文档（PDF/OFD）额外按 item.page 缓存：翻页时重新渲染该页。
    */
   Pico.ensurePreview = function (item) {
     if (!item || !item.file) return Promise.reject(new Error('没有可预览的文件'));
-    if (!Pico.isAdvancedPreviewFile(item)) return Promise.resolve(item.url || '');
+    if (!Pico.isAdvancedPreviewFile(item) && !Pico.isDocumentItem(item)) return Promise.resolve(item.url || '');
+    if (Pico.isDocumentItem(item)) {
+      const wanted = Math.min(item.pageCount || Infinity, Math.max(1, Number(item.page) || 1));
+      if (item.previewURL && Number(item.previewPage) === wanted) {
+        item.url = item.previewURL;
+        return Promise.resolve(item.previewURL);
+      }
+      if (item.previewPromise && item.previewPage === wanted) return item.previewPromise;
+      const ticket = item.previewTicket = (item.previewTicket || 0) + 1;
+      item.previewPage = wanted;
+      item.previewPromise = renderDocumentPage(item).then(function (result) {
+        if (item.previewTicket !== ticket) return item.previewURL || '';
+        if (item.previewURL) { try { URL.revokeObjectURL(item.previewURL); } catch (e) {} }
+        item.previewURL = URL.createObjectURL(result.blob);
+        item.url = item.previewURL;
+        item.previewMime = result.mime;
+        item.previewDescription = result.description;
+        item.previewPage = result.page;
+        item.pageCount = result.pageCount;
+        item.w = result.width; item.h = result.height;
+        return item.previewURL;
+      }).catch(function (error) {
+        item.previewError = error;
+        throw error;
+      });
+      return item.previewPromise;
+    }
     if (item.previewURL) {
       item.url = item.previewURL;
       return Promise.resolve(item.previewURL);
@@ -414,6 +507,8 @@
 
   Pico.previewErrorMessage = function (item, error) {
     const ext = extOf(item);
+    if (ext === 'pdf') return 'PDF 预览失败：' + (error && error.message ? error.message : '文件可能已损坏或加密');
+    if (ext === 'ofd') return 'OFD 预览失败：' + (error && error.message ? error.message : '文件版本或图元暂不兼容');
     if (ext === 'ai') return 'AI 预览失败：' + (error && error.message ? error.message : '文件可能未保存 PDF 兼容预览');
     if (ext === 'dwg') return 'DWG 预览失败：' + (error && error.message ? error.message : '文件版本或图元暂不兼容');
     if (ext === 'psd' || ext === 'psb') return 'PSD/PSB 预览失败：' + (error && error.message ? error.message : '没有可用合成图');

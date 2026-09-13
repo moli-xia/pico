@@ -58,6 +58,7 @@
     'circle': '<circle cx="12" cy="12" r="8.5"/>',
     'arrow-up-right': '<path d="M7 17 17 7M8 7h9v9"/>',
     'type': '<path d="M4 6V4h16v2M12 4v16M8 20h8"/>',
+    'eyedropper': '<path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 0 1-3 3l-3.8-3.8a2.1 2.1 0 0 1 3-3l.4.4Z"/>',
   };
 
   /** 渲染一个图标 */
@@ -116,13 +117,20 @@
     return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', jfif: 'image/jpeg', png: 'image/png',
       gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp',
       ico: 'image/x-icon', svg: 'image/svg+xml', psd: 'image/vnd.adobe.photoshop',
-      psb: 'image/vnd.adobe.photoshop', ai: 'application/postscript', dwg: 'image/vnd.dwg' })[ext] || 'application/octet-stream';
+      psb: 'image/vnd.adobe.photoshop', ai: 'application/postscript', dwg: 'image/vnd.dwg',
+      pdf: 'application/pdf', ofd: 'application/ofd' })[ext] || 'application/octet-stream';
   };
 
   Pico.isImageFile = function (file) {
     if (file.type && file.type.startsWith('image/')) return true;
     const ext = Pico.extOf(file.name);
     return ['jpg', 'jpeg', 'jfif', 'png', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg', 'psd', 'psb', 'ai', 'dwg'].indexOf(ext) >= 0;
+  };
+
+  /** PDF / OFD 文档文件：按页渲染预览，而不是当作单张图片解码。 */
+  Pico.DOC_EXTENSIONS = Object.freeze(['pdf', 'ofd']);
+  Pico.isDocFile = function (file) {
+    return Pico.DOC_EXTENSIONS.indexOf(Pico.extOf(file && (file.name || file))) >= 0;
   };
 
   Pico.uid = (function () { let n = 0; return function () { return ++n; }; })();

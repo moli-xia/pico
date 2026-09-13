@@ -95,7 +95,7 @@ func picoUTF16Z(value string) []uint16 {
 }
 
 func picoPickerFilter() []uint16 {
-	return picoUTF16Z("可预览文件 (*.jpg;*.jpeg;*.jfif;*.png;*.gif;*.webp;*.avif;*.bmp;*.ico;*.svg;*.psd;*.psb;*.ai;*.dwg)\x00*.jpg;*.jpeg;*.jfif;*.png;*.gif;*.webp;*.avif;*.bmp;*.ico;*.svg;*.psd;*.psb;*.ai;*.dwg\x00所有文件 (*.*)\x00*.*\x00")
+	return picoUTF16Z("可预览文件 (*.jpg;*.jpeg;*.jfif;*.png;*.gif;*.webp;*.avif;*.bmp;*.ico;*.svg;*.psd;*.psb;*.ai;*.dwg;*.pdf;*.ofd)\x00*.jpg;*.jpeg;*.jfif;*.png;*.gif;*.webp;*.avif;*.bmp;*.ico;*.svg;*.psd;*.psb;*.ai;*.dwg;*.pdf;*.ofd\x00PDF 文件 (*.pdf)\x00*.pdf\x00OFD 文件 (*.ofd)\x00*.ofd\x00所有文件 (*.*)\x00*.*\x00")
 }
 
 func picoUTF16Parts(buffer []uint16) []string {
@@ -215,6 +215,10 @@ func picoMimeForPath(path string) string {
 		return "application/postscript"
 	case ".dwg":
 		return "image/vnd.dwg"
+	case ".pdf":
+		return "application/pdf"
+	case ".ofd":
+		return "application/ofd"
 	default:
 		return "application/octet-stream"
 	}
@@ -222,7 +226,7 @@ func picoMimeForPath(path string) string {
 
 func picoIsImagePath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".jpg", ".jpeg", ".jfif", ".png", ".gif", ".webp", ".avif", ".bmp", ".ico", ".svg", ".psd", ".psb", ".ai", ".dwg":
+	case ".jpg", ".jpeg", ".jfif", ".png", ".gif", ".webp", ".avif", ".bmp", ".ico", ".svg", ".psd", ".psb", ".ai", ".dwg", ".pdf", ".ofd":
 		return true
 	default:
 		return false

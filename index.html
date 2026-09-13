@@ -25,14 +25,17 @@
       <button class="btn icon-btn only-mobile" id="btnSidebar" title="分类面板">
         <span data-icon="layers"></span>
       </button>
-      <button class="btn btn-primary" id="btnOpenImages" title="打开图片（可多选）">
-        <span data-icon="image"></span><span class="btn-text">打开图片</span>
+      <button class="btn btn-primary" id="btnOpenImages" title="打开图片 / PDF / OFD（可多选）">
+        <span data-icon="image"></span><span class="btn-text">打开文件</span>
       </button>
       <button class="btn" id="btnOpenFolder" title="打开文件夹（含子文件夹）">
         <span data-icon="folder"></span><span class="btn-text">打开文件夹</span>
       </button>
       <button class="btn" id="btnSaveAs" title="另存为（可批量选择格式）">
         <span data-icon="save"></span><span class="btn-text">另存为</span>
+      </button>
+      <button class="btn" id="btnPickColor" title="屏幕取色：点按取色器按钮，点击屏幕任意位置取色并复制 HEX">
+        <span data-icon="eyedropper"></span><span class="btn-text">取色</span>
       </button>
       <button class="btn" id="btnSelectMode" title="多选图片（Ctrl+A 全选）">
         <span data-icon="check"></span><span class="btn-text">选择</span>
@@ -112,7 +115,7 @@
           <h1>Pico 图片查看器</h1>
           <p class="welcome-desc">把图片或整个文件夹<b>拖到这里</b>，即刻开始浏览。<br>所有处理均在本地浏览器完成，不会上传任何文件。</p>
           <div class="welcome-actions">
-            <button class="btn btn-primary btn-lg" id="btnWelcomeImages"><span data-icon="image"></span>打开图片</button>
+            <button class="btn btn-primary btn-lg" id="btnWelcomeImages"><span data-icon="image"></span>打开文件</button>
             <button class="btn btn-lg" id="btnWelcomeFolder"><span data-icon="folder"></span>打开文件夹</button>
             <button class="btn btn-lg" id="btnWelcomeSaveAs"><span data-icon="save"></span>另存为</button>
             <button class="btn btn-lg btn-ghost" id="btnDemo"><span data-icon="play"></span>观看演示</button>
@@ -127,7 +130,7 @@
   </div>
 
   <!-- 拖拽遮罩 -->
-  <div id="dropOverlay"><div class="drop-box"><span data-icon="image" class="drop-ic"></span><div>松开以导入图片</div></div></div>
+  <div id="dropOverlay"><div class="drop-box"><span data-icon="image" class="drop-ic"></span><div>松开以导入图片 / 文档</div></div></div>
 </div>
 
 <!-- ══════════════ 屏幕截图裁剪层 ══════════════ -->
@@ -151,6 +154,32 @@
     <div class="screen-crop-actions">
       <button class="btn" id="screenCropCancel" type="button">取消 <kbd>Esc</kbd></button>
       <button class="btn btn-primary" id="screenCropConfirm" type="button" disabled title="无选区时截取全屏">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 屏幕取色层 ══════════════ -->
+<div id="screenPick" hidden aria-label="屏幕取色">
+  <div id="screenPickStage">
+    <canvas id="screenPickCanvas"></canvas>
+    <div id="screenPickLens" hidden>
+      <canvas id="screenPickLensCanvas"></canvas>
+      <div class="screen-pick-readout">
+        <div class="screen-pick-chip" id="screenPickChip"></div>
+        <div class="screen-pick-values">
+          <span id="screenPickHex">#000000</span>
+          <span id="screenPickRgb">rgb(0, 0, 0)</span>
+          <span id="screenPickPos">0, 0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="screenPickToolbar">
+    <div class="screen-crop-status"><span data-icon="eyedropper"></span><span id="screenPickStatus">正在准备屏幕画面…</span></div>
+    <div class="screen-pick-actions">
+      <div class="screen-pick-prev" id="screenPickPrevWrap" title="当前绘制颜色"><span class="screen-pick-chip" id="screenPickPrev"></span><span id="screenPickPrevHex">—</span></div>
+      <button class="btn" id="screenPickCopy" type="button" title="复制当前颜色（Ctrl+C）">复制 HEX</button>
+      <button class="btn" id="screenPickCancel" type="button">取消 <kbd>Esc</kbd></button>
     </div>
   </div>
 </div>
@@ -200,6 +229,12 @@
     <div class="v-filmstrip" id="vStrip" hidden></div>
     <div class="v-toolbar" id="vToolbar">
       <div class="v-progress" id="vProgress" hidden></div>
+      <div class="v-docpages" id="vDocPages" hidden>
+        <button class="v-btn" id="vBtnPagePrev" title="上一页（←）"><span data-icon="chevron-left"></span></button>
+        <span class="v-pagelabel" id="vPageLabel" title="页码">1 / 1</span>
+        <button class="v-btn" id="vBtnPageNext" title="下一页（→）"><span data-icon="chevron-right"></span></button>
+      </div>
+      <span class="v-divider v-doc-divider" id="vDocDivider" hidden></span>
       <button class="v-btn" id="vBtnZoomOut" title="缩小（-）"><span data-icon="zoom-out"></span></button>
       <button class="v-btn" id="vBtnZoomIn" title="放大（+）"><span data-icon="zoom-in"></span></button>
       <button class="v-btn v-btn-txt" id="vBtnFit" title="适应窗口（0）">适应</button>
@@ -276,7 +311,13 @@
             <button class="btn editor-tool editor-mark-tool" id="editorToolText"><span data-icon="type"></span><span>文字</span></button>
           </div>
           <div class="editor-mark-options">
-            <div class="editor-palette-field"><span>颜色</span><div class="color-palette" id="editorDrawPalette" role="group" aria-label="绘制颜色"></div></div>
+            <div class="editor-palette-field">
+              <div class="editor-palette-head">
+                <span>颜色</span>
+                <button class="btn editor-mini-btn" id="editorPickColor" type="button" title="从屏幕任意位置取色"><span data-icon="eyedropper" data-icon-size="13"></span>取色器</button>
+              </div>
+              <div class="color-palette" id="editorDrawPalette" role="group" aria-label="绘制颜色"></div>
+            </div>
             <label class="editor-range"><span>粗细 / 文字字号 / 马赛克块 <output id="editorDrawWidthVal">6</output> px</span><input id="editorDrawWidth" type="range" min="1" max="180" step="1" value="6"></label>
             <label class="editor-range"><span>不透明度 <output id="editorDrawOpacityVal">100</output>%</span><input id="editorDrawOpacity" type="range" min="20" max="100" step="1" value="100"></label>
             <label class="editor-check"><input id="editorDrawFill" type="checkbox"><span>填充矩形 / 椭圆</span></label>
@@ -473,16 +514,18 @@
 
 <div id="toasts"></div>
 
-<input type="file" id="fileInput" multiple accept="image/*,.jfif,.avif,.webp,.bmp,.ico,.psd,.psb,.ai,.dwg" hidden>
+<input type="file" id="fileInput" multiple accept="image/*,.jfif,.avif,.webp,.bmp,.ico,.psd,.psb,.ai,.dwg,.pdf,.ofd" hidden>
 <input type="file" id="dirInput" webkitdirectory multiple hidden>
 
 <script src="js/util.js"></script>
 <script src="js/exif.js"></script>
 <script src="js/demo.js"></script>
 <script src="js/screenshot.js"></script>
+<script src="js/picker.js"></script>
 <script src="js/viewer.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/converter.js"></script>
+<script src="js/ofd.js"></script>
 <script src="js/formats.js"></script>
 <script src="js/app.js"></script>
 </body>

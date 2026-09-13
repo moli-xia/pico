@@ -17,6 +17,8 @@
     const elProgress = $('vProgress');
     const btnPlay = $('vBtnPlay'), btnFull = $('vBtnFull'), btnInfo = $('vBtnInfo'), btnStrip = $('vBtnStrip');
     const btnEdit = $('vBtnEdit'), btnSaveAs = $('vBtnSaveAs');
+    const elDocPages = $('vDocPages'), elPageLabel = $('vPageLabel'), elDocDivider = $('vDocDivider');
+    const btnPagePrev = $('vBtnPagePrev'), btnPageNext = $('vBtnPageNext');
 
     /* ---------- 内部状态 ---------- */
     let openState = false;
@@ -38,6 +40,35 @@
 
     const list = function () { return hooks.getList(); };
     const settings = function () { return hooks.getSettings(); };
+    const isDoc = function (item) { return !!(item && item.doc); };
+
+    /* ---------- 文档页码 ---------- */
+    function updateDocUI(item) {
+      const doc = isDoc(item);
+      elDocPages.hidden = !doc;
+      elDocDivider.hidden = !doc;
+      $('vBtnRotCCW').hidden = doc;
+      $('vBtnRotCW').hidden = doc;
+      btnPlay.hidden = doc;
+      btnEdit.hidden = doc;
+      if (doc) {
+        const page = item.page || 1;
+        elPageLabel.textContent = page + ' / ' + (item.pageCount || '…');
+        btnPagePrev.disabled = page <= 1;
+        btnPageNext.disabled = item.pageCount ? page >= item.pageCount : false;
+      }
+    }
+    function gotoPage(page) {
+      const item = list()[cur];
+      if (!isDoc(item)) return;
+      const count = item.pageCount || 1;
+      const target = clamp(page, 1, Math.max(1, count));
+      if (target === (item.page || 1)) return;
+      item.page = target;
+      if (hooks.onChange) hooks.onChange(item);
+      show(cur);
+      wake();
+    }
 
     /* ---------- 几何 ---------- */
     function dispW() { return rot % 180 ? natH : natW; }
@@ -111,6 +142,7 @@
 
       rot = item.rot || 0;
       natW = item.w || 0; natH = item.h || 0;
+      updateDocUI(item);
 
       const tick = ++loadTick;
       elLoad.classList.remove('on');
@@ -142,6 +174,7 @@
       usePreview.then(function (url) {
         if (tick !== loadTick) return;
         img.src = url;
+        if (isDoc(item)) updateDocUI(item); // 渲染完成后 pageCount 已知，刷新页码显示
         if (img.complete && img.naturalWidth) img.onload();
       }).catch(function (error) {
         if (tick !== loadTick) return;
@@ -175,12 +208,17 @@
     }
 
     function next(wrapOk) {
+      const item = list()[cur];
+      // 文档先翻页，翻到末页后再切换到下一个文件。
+      if (isDoc(item) && (item.page || 1) < (item.pageCount || 1)) { gotoPage((item.page || 1) + 1); return; }
       const n = list().length;
       if (cur < n - 1) show(cur + 1);
       else if (wrapOk && settings().loop) show(0);
       else if (wrapOk) pause();
     }
     function prev(wrapOk) {
+      const item = list()[cur];
+      if (isDoc(item) && (item.page || 1) > 1) { gotoPage((item.page || 1) - 1); return; }
       if (cur > 0) show(cur - 1);
       else if (wrapOk && settings().loop) show(list().length - 1);
       else if (wrapOk) pause();
@@ -294,6 +332,7 @@
       row('文件名', esc(item.name));
       row('类型', (Pico.extOf(item.name) || '?').toUpperCase());
       row('尺寸', (natW ? natW + ' × ' + natH + ' px' : '解码中…'));
+      if (item.doc) row('页码', (item.page || 1) + ' / ' + (item.pageCount || '…'));
       if (item.previewDescription) row('预览方式', esc(item.previewDescription));
       if (item.previewError) row('预览状态', esc(Pico.previewErrorMessage(item, item.previewError)));
       row('文件大小', Pico.formatBytes(item.size));
@@ -303,23 +342,25 @@
       row('导入分类', item.dir ? esc(item.dir) : '（顶层）');
       html += rows.join('');
 
-      html += '<div class="info-sec">拍摄信息（EXIF）</div>';
-      if (item.exif === undefined) {
-        html += '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">读取中…</span></div>';
-        item.exif = null;
-        Pico.readExif(item.file).then(function (ex) {
-          item.exif = ex || null;
-          if (infoOpen && list()[cur] === item) renderInfo(item);
-        });
-      } else if (item.exif) {
-        const ex = Pico.exifRows(item.exif);
-        html += ex.length
-          ? ex.map(function (r) {
-              return '<div class="info-row"><span class="k">' + r[0] + '</span><span class="v">' + esc(r[1]) + '</span></div>';
-            }).join('')
-          : '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">未找到 EXIF 数据</span></div>';
-      } else {
-        html += '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">无 EXIF 信息</span></div>';
+      if (!item.doc) {
+        html += '<div class="info-sec">拍摄信息（EXIF）</div>';
+        if (item.exif === undefined) {
+          html += '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">读取中…</span></div>';
+          item.exif = null;
+          Pico.readExif(item.file).then(function (ex) {
+            item.exif = ex || null;
+            if (infoOpen && list()[cur] === item) renderInfo(item);
+          });
+        } else if (item.exif) {
+          const ex = Pico.exifRows(item.exif);
+          html += ex.length
+            ? ex.map(function (r) {
+                return '<div class="info-row"><span class="k">' + r[0] + '</span><span class="v">' + esc(r[1]) + '</span></div>';
+              }).join('')
+            : '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">未找到 EXIF 数据</span></div>';
+        } else {
+          html += '<div class="info-row"><span class="v" style="text-align:left;color:#8b94a7">无 EXIF 信息</span></div>';
+        }
       }
       elInfoBody.innerHTML = html;
     }
@@ -525,13 +566,13 @@
         case '-': case '_': zoomAt(0, 0, 0.8, true); break;
         case '0': fit(true); break;
         case '1': actual(true); break;
-        case 'r': case 'R': doRotate(1); break;
-        case 'l': case 'L': doRotate(-1); break;
+        case 'r': case 'R': if (!isDoc(list()[cur])) doRotate(1); break;
+        case 'l': case 'L': if (!isDoc(list()[cur])) doRotate(-1); break;
         case 'i': case 'I': toggleInfo(); break;
         case 't': case 'T': setStrip(!elStrip.hidden ? false : true); break;
         case 'e': case 'E': {
           const item = list()[cur];
-          if (item && hooks.onEdit) hooks.onEdit(item);
+          if (item && !isDoc(item) && hooks.onEdit) hooks.onEdit(item);
           break;
         }
         case 'o': case 'O': {
@@ -558,6 +599,8 @@
     $('vBtnRotCW').addEventListener('click', function () { doRotate(1); });
     $('vBtnRotCCW').addEventListener('click', function () { doRotate(-1); });
     btnPlay.addEventListener('click', function () { playing ? pause() : play(); });
+    btnPagePrev.addEventListener('click', function () { gotoPage((list()[cur] ? (list()[cur].page || 1) : 1) - 1); });
+    btnPageNext.addEventListener('click', function () { gotoPage((list()[cur] ? (list()[cur].page || 1) : 1) + 1); });
     btnInfo.addEventListener('click', function () { toggleInfo(); });
     $('vInfoClose').addEventListener('click', function () { toggleInfo(false); });
     btnFull.addEventListener('click', toggleFull);
